@@ -36,6 +36,9 @@ struct postStatus {
     char *buff;
 };
 
+bool postWithDataFlag = false; //indicating if we got post with data to free allocated post->buff
+
+
 //corresponding json response strings
 const char * basicResponseWraper = 
   "{  \"Response\": {  }";

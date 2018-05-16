@@ -90,32 +90,27 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
       post->status = true;
       return MHD_YES;
     } 
-    else if(*upload_data_size != 0 && NULL != post->buff) 
+    else if(*upload_data_size != 0)
     {//check if we have data in post request
 
-        //if we get an empty string for the post data
-        if(NULL == post->buff)
-        {
-          *upload_data_size = 0;
-          return MHD_YES;
-        }
-        post->buff = malloc(*upload_data_size + 1);
-        snprintf(post->buff, *upload_data_size+1,"%s", upload_data);
-        *upload_data_size = 0;
-        jsonResponse = (char*) jsonPostWithData;
-        return MHD_YES;
-    }
-    else 
-    {//if we don't have data in post
-      if(post->buff == NULL || strcmp(post->buff, "") == 0)
-        jsonResponse = (char*) jsonPostWithNoData;
-      else
-        free(post->buff);
+      postWithDataFlag = true; 
+      post->buff = malloc(*upload_data_size + 1);
+      snprintf(post->buff, *upload_data_size+1,"%s", upload_data);
+      *upload_data_size = 0;
+      jsonResponse = (char*) jsonPostWithData;
+      return MHD_YES;
     }
 
     //freeing allocated memory
     if(post != NULL)
     {
+      if(postWithDataFlag)
+      {
+        free(post->buff);
+        postWithDataFlag = false;
+      }
+      else
+        jsonResponse = (char*) jsonPostWithNoData;
       free(post);
     }
     //sending appropriate response

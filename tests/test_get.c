@@ -37,12 +37,8 @@ copyBuffer (void *ptr, size_t size, size_t nmemb, void *ctx)
   return size * nmemb;
 }
 
-/* Test Suite setup and cleanup functions: */
-int init_suite(void) { return 0; }
-int clean_suite(void) { return 0; }
-
 //performing curl according to desired url
-void execute_curl(const char* url)
+void executeCurl(const char* url)
 {
   struct curl_slist *hs=NULL; //to include content-type in curl
 
@@ -63,41 +59,55 @@ void execute_curl(const char* url)
   errornum = curl_easy_perform (c); //performing: curl http://127.0.0.1:8888 GET request
 }
 
-//check and see if we got 200 OK response for the GET request
+/* Test Suite setup and cleanup functions: */
+int init_suite(void) { return 0; }
+int clean_suite(void) { return 0; }
+
+/* Tests */
+//1. check and see if we got 200 OK response for the GET request
 void simple_get_request_test(void) 
 {	
+	const char* url = "http://127.0.0.1/api/terminals/";
+
+	//executing GET curl
+	executeCurl(url);
+	//curl cleanup
+	curl_easy_cleanup (c);
+
 	CU_ASSERT_EQUAL(CURLE_OK, errornum);
 	if(CURLE_OK != errornum)
 		CU_FAIL(HTTP Server probably down!); //suspecting HTTP server down
 }
-//check if the json reponse is as expected for GET all
+//2. check if the json reponse is as expected for GET all
 void get_all_request_test(void) 
 {	
 	int contentSize;
 	const char* url = "http://127.0.0.1/api/terminals/";
 
-	execute_curl(url);
-	contentSize = strlen(cbc.buf);
+	//executing curl
+	executeCurl(url);
+	//curl cleanup
 	curl_easy_cleanup (c);
 
 	CU_ASSERT_STRING_EQUAL( expceted_getAll_json, cbc.buf );
 }
-//check if the json reponse is as expected for GET by ID
+//3. check if the json reponse is as expected for GET by ID
 void get_by_id_resqust_test(void)
 {
 	int contentSize;
 	const char* url = "http://127.0.0.1/api/terminals/1";
 
-	execute_curl(url);
-	contentSize = strlen(cbc.buf);
+	//executing curl
+	executeCurl(url);
+	//curl cleanup
 	curl_easy_cleanup (c);
 
 	CU_ASSERT_STRING_EQUAL( expceted_getById_json, cbc.buf );
 }
 
 
- int main()
- {
+int main()
+{
    CU_pSuite pSuite = NULL;
 
    /* initialize the CUnit test registry */
@@ -133,4 +143,4 @@ void get_by_id_resqust_test(void)
    CU_cleanup_registry();
    return CU_get_error();
 
- }
+}

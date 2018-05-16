@@ -29,21 +29,18 @@ static struct CBC cbc;
 static size_t
 copyBuffer (void *ptr, size_t size, size_t nmemb, void *ctx)
 {
-  struct CBC *cbc = ctx;
+  struct CBC *temp = ctx;
 
-  if (cbc->pos + size * nmemb > cbc->size)
+  if (temp->pos + size * nmemb > temp->size)
     return 0;                   /* overflow */
-  memcpy (&cbc->buf[cbc->pos], ptr, size * nmemb);
-  cbc->pos += size * nmemb;
+  memcpy (&temp->buf[temp->pos], ptr, size * nmemb);
+  temp->pos += size * nmemb;
+  temp->buf[temp->pos] = '\0';
   return size * nmemb;
 }
 
-/* Test Suite setup and cleanup functions: */
-int init_suite(void) { return 0; }
-int clean_suite(void) { return 0; }
-
 //performing curl according to desired url
-void execute_curl(const char* url, const char* postData)
+void executeCurl(const char* url, const char* postData)
 {
   struct curl_slist *hs=NULL; //to include content-type in curl
 
@@ -65,9 +62,21 @@ void execute_curl(const char* url, const char* postData)
   errornum = curl_easy_perform (c); //performing: curl http://127.0.0.1:8888 GET request
 }
 
+/* Test Suite setup and cleanup functions: */
+int init_suite(void) { return 0; }
+int clean_suite(void) { return 0; }
+
+/* Tests */
 //check and see if we got 200 OK response for the POST request
 void simple_post_request_test(void) 
 { 
+  const char* url = "http://127.0.0.1/api/terminals/";
+  const char* postData = "";
+
+  //executing POST curl
+  executeCurl(url, postData);
+  curl_easy_cleanup (c);
+
   CU_ASSERT_EQUAL(CURLE_OK, errornum);
   if(CURLE_OK != errornum)
     CU_FAIL(HTTP Server probably down!); //suspecting HTTP server down
@@ -79,9 +88,13 @@ void post_with_data_request_test(void)
   const char* url = "http://127.0.0.1/api/terminals/";
   const char* postData = basic_key_value_json;
 
-  execute_curl(url, postData);
-  contentSize = strlen(cbc.buf);
+  //executing
+  executeCurl(url, postData);
+  //curl cleanup
   curl_easy_cleanup (c);
+
+  printf("\n#### expceted_postWithData_json is: %s\n", expceted_postWithData_json);
+  printf("\n#### cbc.buf is: %s\n", cbc.buf);
   
   CU_ASSERT_STRING_EQUAL( expceted_postWithData_json, cbc.buf );
 }
@@ -92,12 +105,10 @@ void post_with_no_data_request_test(void)
   const char* url = "http://127.0.0.1/api/terminals/";
   const char* postData = "";
 
-  execute_curl(url, postData);
-  contentSize = strlen(cbc.buf);
+  //executing curl
+  executeCurl(url, postData);
+  //curl cleanup
   curl_easy_cleanup (c);
-
-  printf("\n#### expceted_postWithData_json is: %s\n", expceted_postWithNoData_json);
-  printf("\n#### cbc.buf is: %s\n", cbc.buf);
 
   CU_ASSERT_STRING_EQUAL( expceted_postWithNoData_json, cbc.buf );
 }
