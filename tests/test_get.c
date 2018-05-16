@@ -11,7 +11,8 @@
 static CURL *c;
 static CURLcode errornum;
 char buf[BUFSIZE];
-const char * expceted_json = "{ 'error': ['request was neither proper GET nor POST!'] }"; //json response to be returned
+const char *expceted_getById_json	= "{ 'response': ['This is a GET BYID request!'] }";	//json response to be returned
+const char *expceted_getAll_json  	= "{ 'response': ['This is a GET ALL request!'] }";    	//json response to be returned
 
 //struct that will contain the response from the HTTP request
 struct CBC
@@ -37,34 +38,29 @@ copyBuffer (void *ptr, size_t size, size_t nmemb, void *ctx)
 }
 
 /* Test Suite setup and cleanup functions: */
-int init_suite(void) 
-{ 
+int init_suite(void) { return 0; }
+int clean_suite(void) { return 0; }
+
+//performing curl according to desired url
+void execute_curl(const char* url)
+{
   struct curl_slist *hs=NULL; //to include content-type in curl
 
-	cbc.buf = buf;
-	cbc.size = BUFSIZE;
-	cbc.pos = 0;
+  cbc.buf = buf;
+  cbc.size = BUFSIZE;
+  cbc.pos = 0;
 
-	c = curl_easy_init ();
-	curl_easy_setopt (c, CURLOPT_URL, "http://127.0.0.1/");
-	curl_easy_setopt (c, CURLOPT_PORT, (long)PORT);
+  c = curl_easy_init ();
+  curl_easy_setopt (c, CURLOPT_URL, url);
+  curl_easy_setopt (c, CURLOPT_PORT, (long)PORT);
   hs = curl_slist_append(hs, "Content-Type: application/json");
   curl_easy_setopt (c, CURLOPT_HTTPHEADER, hs);
-	curl_easy_setopt (c, CURLOPT_WRITEFUNCTION, &copyBuffer);
-	curl_easy_setopt (c, CURLOPT_WRITEDATA, &cbc);
-	curl_easy_setopt (c, CURLOPT_VERBOSE, 1);
-	curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
+  curl_easy_setopt (c, CURLOPT_WRITEFUNCTION, &copyBuffer);
+  curl_easy_setopt (c, CURLOPT_WRITEDATA, &cbc);
+  curl_easy_setopt (c, CURLOPT_VERBOSE, 1);
+  curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
 
-	errornum = curl_easy_perform (c); //performing: curl http://127.0.0.1:8888 GET request
-
-	return 0; 
-}
-
-int clean_suite(void) 
-{ 
-	curl_easy_cleanup (c);
-
-	return 0; 
+  errornum = curl_easy_perform (c); //performing: curl http://127.0.0.1:8888 GET request
 }
 
 //check and see if we got 200 OK response for the GET request
@@ -74,14 +70,29 @@ void simple_get_request_test(void)
 	if(CURLE_OK != errornum)
 		CU_FAIL(HTTP Server probably down!); //suspecting HTTP server down
 }
-//check if the json reponse is as expected
-void simple_get_response_test(void)
+//check if the json reponse is as expected for GET all
+void get_all_request_test(void) 
+{	
+	int contentSize;
+	const char* url = "http://127.0.0.1/api/terminals/";
+
+	execute_curl(url);
+	contentSize = strlen(cbc.buf);
+	curl_easy_cleanup (c);
+
+	CU_ASSERT_STRING_EQUAL( expceted_getAll_json, cbc.buf );
+}
+//check if the json reponse is as expected for GET by ID
+void get_by_id_resqust_test(void)
 {
 	int contentSize;
+	const char* url = "http://127.0.0.1/api/terminals/1";
 
+	execute_curl(url);
 	contentSize = strlen(cbc.buf);
+	curl_easy_cleanup (c);
 
-	CU_ASSERT_STRING_EQUAL( expceted_json, cbc.buf );
+	CU_ASSERT_STRING_EQUAL( expceted_getById_json, cbc.buf );
 }
 
 
@@ -94,15 +105,16 @@ void simple_get_response_test(void)
       return CU_get_error();
 
    /* add a suite to the registry */
-   pSuite = CU_add_suite( "simple_request_test_suite", init_suite, clean_suite );
+   pSuite = CU_add_suite( "get_request_test_suite", init_suite, clean_suite );
    if ( NULL == pSuite ) {
       CU_cleanup_registry();
       return CU_get_error();
    }
 
    /* add the tests to the suite */
-   if ( (NULL == CU_add_test(pSuite, "simple_get_request_test", simple_get_request_test)) 	||
-   		(NULL == CU_add_test(pSuite, "simple_get_response_test", simple_get_response_test))
+   if ( (NULL == CU_add_test(pSuite, "simple_get_request_test", simple_get_request_test))	|| 
+   		(NULL == CU_add_test(pSuite, "get_all_request_test", get_all_request_test))			||
+   		(NULL == CU_add_test(pSuite, "get_by_id_resqust_test", get_by_id_resqust_test))
    	  )
    {
       CU_cleanup_registry();

@@ -13,8 +13,9 @@ LCUNIT 	= -L$(LIB) -lcunit
 LMHTTP 	= -L$(LIB) -lmicrohttpd
 LCURL 	= -lcurl
 
-TESTS 	= test_dup \
-	test_hello_world
+TESTS 	= 	test_hello_world \
+			test_get \
+			test_post
 
 all: $(TESTS)
 
