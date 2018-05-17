@@ -11,8 +11,8 @@
 static CURL *c;
 static CURLcode errornum;
 char buf[BUFSIZE];
-const char *expceted_getById_json	= "{ 'response': ['This is a GET BYID request!'] }";	//json response to be returned
-const char *expceted_getAll_json  	= "{ 'response': ['This is a GET ALL request!'] }";    	//json response to be returned
+const char *expceted_getById_json	= "{ \"Response\": { \"terminalID\": 1, \"transactions\": [ { \"cardType\": \"Visa\", \"TransactionType\": \"Credit\"}, { \"cardType\": \"EFTPOS\", \"TransactionType\": \"Savings\" } ] } }";	//json response to be returned
+const char *expceted_getAll_json  = "{ \"Response\": {   \"terminalID\": 1, \"transactions\": [ { \"cardType\": \"Visa\", \"TransactionType\": \"Credit\"}, { \"cardType\": \"EFTPOS\", \"TransactionType\": \"Savings\" } ], \"terminalID\": 2, \"transactions\": [ { \"cardType\": \"MasterCard\", \"TransactionType\": \"Debit\"}, { \"cardType\": \"EFTPOS\", \"TransactionType\": \"Check\" } ] } }";    	//json response to be returned
 
 //struct that will contain the response from the HTTP request
 struct CBC
@@ -34,6 +34,7 @@ copyBuffer (void *ptr, size_t size, size_t nmemb, void *ctx)
     return 0;                   /* overflow */
   memcpy (&cbc->buf[cbc->pos], ptr, size * nmemb);
   cbc->pos += size * nmemb;
+  cbc->buf[cbc->pos] = '\0';
   return size * nmemb;
 }
 

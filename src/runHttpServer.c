@@ -17,11 +17,11 @@ sendResponse (struct MHD_Connection *connection, const char *json)
 
 
   //creating the response
-  response =
-    MHD_create_response_from_buffer (strlen (json), (void *) json, MHD_RESPMEM_PERSISTENT);
-    if (!response)
-      return MHD_NO;
-    MHD_add_response_header(response, "Content-Type", "application/json");
+  response = MHD_create_response_from_buffer (strlen(json), 
+    (void *) json, MHD_RESPMEM_MUST_COPY); //using MHD_RESPMEM_MUST_COPY because our json buffer is the stack (not allocated)
+  if (!response)
+    return MHD_NO;
+  MHD_add_response_header(response, "Content-Type", "application/json");
 
   //queuing the response to be sent
   ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
@@ -39,8 +39,8 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
                       const char *version, const char *upload_data,
                       size_t *upload_data_size, void **con_cls)
 {
-
   char * jsonResponse;
+  char errMsg[ERRMSGSIZE];
   struct postStatus *post = NULL;
   post = (struct postStatus*)*con_cls;
 
@@ -50,22 +50,23 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
     return sendResponse (connection, jsonError);
   }
 
+  /* Received GET request */
   if (0 == strcmp (method, "GET"))
   {
     int termId = ALL;
+    char jResponse[MAXRESPONSESIZE];
 
     //extracting terminal id from url
     termId = getTerminalId(url);    //could be ALL or specific ID
 
-    //get correponding jason from DB
-    //jsonResponse = (char*) readFromDb(termId, NULL); //read from db
+    //get correponding json from DB
+    readFromDb(termId, jResponse, errMsg);
 
-    if( ALL == termId )
-      return sendResponse(connection, jsonGetAll);
-    else
-      return sendResponse (connection, jsonGetById);
+    //sending appropriate response
+    return sendResponse(connection, jResponse);
   }
 
+  /* Received POST request */
   if (0 == strcmp (method, "POST"))
   {
     char endPoint[MAXENDPOINTSIZE];
@@ -73,12 +74,13 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
     //extracting endpoint from url (we expect NO endpoint)
     sscanf(url, "/api/terminals/%s", endPoint);
     
-    //checkig if we got terminal id
+    //checkig if we got wrong resource path
     if( endPoint[0] != '\0' )
     {
         return sendResponse (connection, jsonError);
     }
-    //first time the callback has been called 
+
+    //first time the callback has been called (upload_data still not available)
     if(post == NULL) {
       post = malloc(sizeof(struct postStatus));
       post->status = false;
@@ -90,6 +92,7 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
       post->status = true;
       return MHD_YES;
     } 
+    //the second time invoking this callback makes the upload_data available
     else if(*upload_data_size != 0)
     {//check if we have data in post request
 
@@ -113,6 +116,10 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
         jsonResponse = (char*) jsonPostWithNoData;
       free(post);
     }
+
+    //NOTE: for testing only - remove when done!
+    //writeToDb(jsonPostWithData, NULL);
+
     //sending appropriate response
     return sendResponse (connection, jsonResponse);
   }

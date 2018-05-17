@@ -27,6 +27,8 @@
 #define PORT 			8888	//HTTP server listning port
 #define MAXNAMESIZE		32 		//max length of resourse size
 #define MAXENDPOINTSIZE	10		//limiting the number of terminals to 10
+#define MAXRESPONSESIZE 1024	//max json response size
+#define ERRMSGSIZE		32		//error message buffer size - related to errors from DB (R/W errors)		
 #define ALL 			-1		//when requesting all terminals
 
 #define TERMINALSRESOURCE "/api/terminals/" //terminals resource path
@@ -36,24 +38,7 @@ struct postStatus {
     char *buff;
 };
 
-bool postWithDataFlag = false; //indicating if we got post with data to free allocated post->buff
-
-
-//corresponding json response strings
-const char * basicResponseWraper = 
-  "{  \"Response\": {  }";
-
-const char * getTermByIdResponse =
-  "{ %s %s }  }";
-
- const char *getAllTermResponse =
-  "{  %s %s }  }";
-
-const char *postResponse =
-  "{  %s \"terminalID\": %d}   }";
-
-const char *errorResponse =
-  "{  \"error\": { \"code\": %d, \"message\": %s!}  }";
+bool postWithDataFlag = false; 	//indicating if we got post with data to free allocated post->buff
 
 
 //temporary jsons

@@ -92,9 +92,6 @@ void post_with_data_request_test(void)
   executeCurl(url, postData);
   //curl cleanup
   curl_easy_cleanup (c);
-
-  printf("\n#### expceted_postWithData_json is: %s\n", expceted_postWithData_json);
-  printf("\n#### cbc.buf is: %s\n", cbc.buf);
   
   CU_ASSERT_STRING_EQUAL( expceted_postWithData_json, cbc.buf );
 }
