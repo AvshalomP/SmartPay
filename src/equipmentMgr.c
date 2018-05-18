@@ -13,23 +13,19 @@ static int globalTermCtr = 0;             //global terminals counter
 //corresponding json response strings
 const char * basicResponseWraper 	= "{ \"Response\": { %s } }";
 const char * postIdTransWraper		= "\"terminalID\": %d, \"transactions\": [ %s ]";
+const char * postIdWraper			= "\"terminalID\": %d";
+
 
 //creating node from json  
-static struct terminals * createTerminalFromJson(const char * json, int * error)
+static struct terminals * createTerminalFromJson(char * json, int * error)
 {
 	struct terminals * newNode = NULL;
-	char * data;
 	int newTerminalId = -1;
 
+
 	//create new terminal (assigning id + transactions data)
-	newNode = createNode(data);
-
-	//extracting relevant data from json
-   	//memset(newNode->data, '\0', sizeof(newNode->data));	//clear the memory location
-   	//strncpy(newNode->data, json+14, (strlen(json)-16));	//+14 means getting what's after the response key
-	//snprintf(newNode->data, strlen(json), "%[^:]: %s", json);
-	//->> sscanf(json, "%99[^{}]{ %99[^}]}", data, newNode->transactions);
-
+	newNode = createNode("");
+	sprintf(newNode->transactions, postIdTransWraper, newNode->id, json);
    
 	return newNode;
 }
@@ -142,9 +138,10 @@ struct terminals* getAllTerminals()
 
 /* DB manipulations: write, read */
 //write to database
-int writeToDb(const char * json, char* errMsg)
+int writeToDb(char * json, char* errMsg)
 {
 	struct terminals * newNodePtr = NULL;
+	char tempData[DATASIZE];
 
 	mgrInit(); //NOTE: remove when DB thread is implemented
 
@@ -155,11 +152,16 @@ int writeToDb(const char * json, char* errMsg)
 	//add new terminal to linked list
 	addNodeToList(newNodePtr);
 
+	//creating response json
+	sprintf(tempData, postIdWraper, newNodePtr->id);	//id
+	sprintf(json, basicResponseWraper, tempData);
+
+
 	return SUCCESS;
 }
 
 
-//NOTE: create dummy list - need to remove!
+//NOTE: create dummy list - need to remove when completing DB implementation!
 static void createDummyList()
 {
 	//NOTE: for test - remove when done!

@@ -39,7 +39,6 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
                       const char *version, const char *upload_data,
                       size_t *upload_data_size, void **con_cls)
 {
-  char * jsonResponse;
   char errMsg[ERRMSGSIZE];
   struct postStatus *post = NULL;
   post = (struct postStatus*)*con_cls;
@@ -70,11 +69,12 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
   if (0 == strcmp (method, "POST"))
   {
     char endPoint[MAXENDPOINTSIZE];
+    char jsonReqResp[MAXRESPONSESIZE];  //using as request and response for post
 
     //extracting endpoint from url (we expect NO endpoint)
     sscanf(url, "/api/terminals/%s", endPoint);
     
-    //checkig if we got wrong resource path
+    //validation: checkig if we got wrong resource path
     if( endPoint[0] != '\0' )
     {
         return sendResponse (connection, jsonError);
@@ -98,9 +98,9 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
 
       postWithDataFlag = true; 
       post->buff = malloc(*upload_data_size + 1);
-      snprintf(post->buff, *upload_data_size+1,"%s", upload_data);
+      snprintf(post->buff, *upload_data_size+1,"%s", upload_data);  //extracting upload data from request
       *upload_data_size = 0;
-      jsonResponse = (char*) jsonPostWithData;
+      sprintf(jsonReqResp, "%s", jsonPostWithData);
       return MHD_YES;
     }
 
@@ -109,19 +109,21 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
     {
       if(postWithDataFlag)
       {
+        sprintf(jsonReqResp, "%s", post->buff); //preparing request to pass to the DB 
         free(post->buff);
         postWithDataFlag = false;
+        
+        //write new terminal to DB
+        writeToDb(jsonReqResp, NULL);
       }
       else
-        jsonResponse = (char*) jsonPostWithNoData;
+        sprintf(jsonReqResp, "%s", jsonPostWithNoData);
+
       free(post);
     }
 
-    //NOTE: for testing only - remove when done!
-    //writeToDb(jsonPostWithData, NULL);
-
     //sending appropriate response
-    return sendResponse (connection, jsonResponse);
+    return sendResponse (connection, jsonReqResp);
   }
 
   //sending error message as we didn't get proper GET or POST request

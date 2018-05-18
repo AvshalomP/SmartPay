@@ -31,7 +31,7 @@ int mgrInit();
 
 /* DB manipulations: write, read */
 //write to database - returns SUCCESS or FAIL
-int writeToDb(const char * json, char* errMsg);
+int writeToDb(char * json, char* errMsg);
 //read from database - returns SUCCESS or FAIL
 const int readFromDb(int termId, char * respJson, char* errMsg);
 

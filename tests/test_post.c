@@ -11,7 +11,7 @@
 static CURL *c;
 static CURLcode errornum;
 char buf[BUFSIZE];
-const char *expceted_postWithData_json    = "{ 'response': ['This is a POST request with data!'] }";      //json response to be returned
+const char *expceted_postWithData_json    = "{ \"Response\": { \"terminalID\": 1 } }";      //json response to be returned
 const char *expceted_postWithNoData_json  = "{ 'response': ['This is a POST request with NO data!'] }";   //json response to be returned
 const char *basic_key_value_json          = "{ \"key1\": \"value1\" }";
 
