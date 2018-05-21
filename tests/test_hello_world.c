@@ -11,7 +11,7 @@
 static CURL *c;
 static CURLcode errornum;
 char buf[BUFSIZE];
-const char * expceted_json = "{ 'error': ['request was neither proper GET nor POST!'] }"; //json response to be returned
+const char * expceted_json = "{ 'error': [Request was neither proper GET nor POST!] }"; //json response to be returned
 
 //struct that will contain the response from the HTTP request
 struct CBC

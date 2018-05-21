@@ -14,6 +14,14 @@ static int globalTermCtr = 0;             //global terminals counter
 const char * basicResponseWraper 	= "{ \"Response\": { %s } }";
 const char * postIdTransWraper		= "\"terminalID\": %d, \"transactions\": [ %s ]";
 const char * postIdWraper			= "\"terminalID\": %d";
+const char * basicErrorWraper		= "{ \"error\": { %s } }";
+
+//shared queue list
+struct requestQueueItem * requestQueueList;			//head of shared requests list (queue)
+struct requestQueueItem * requestQueueTail = NULL;	//tail of shated requests list (queue)
+pthread_mutex_t reqQueueMutex = PTHREAD_MUTEX_INITIALIZER;	//mutex to handle queue
+
+bool sigEqMgrFlag = true;		//signal equipmentMgr to shutdown
 
 
 //creating node from json  
@@ -25,7 +33,7 @@ static struct terminals * createTerminalFromJson(char * json, int * error)
 
 	//create new terminal (assigning id + transactions data)
 	newNode = createNode("");
-	sprintf(newNode->transactions, postIdTransWraper, newNode->id, json);
+	sprintf(newNode->transactions, "%s", json);
    
 	return newNode;
 }
@@ -33,7 +41,7 @@ static struct terminals * createTerminalFromJson(char * json, int * error)
 //creating json response from node or list 
 static int createJsonFromList(struct terminals* terms, const int termId, char * respJson)
 {
-  char tempTransHolder[DATASIZE];		//temporary buffer to the transactions portion
+  char tempTransHolder[DATASIZE];		//temporary buffer to the ID+transactions portion
   int lastIndex = 0; 					//this is the last index of valid char in json str 
   struct terminals * runner = termList;	//terminals pointer to traverse the list
 
@@ -65,14 +73,22 @@ static int createJsonFromList(struct terminals* terms, const int termId, char * 
 //free all nodes in list
 void freeNodeList()
 {
-	struct terminals* head = termList;	//holds the head of the node list to free
+	struct terminals* headTerm = termList;			//holds the head of the terminals list to free
+	struct requestQueueItem* headReq = requestQueueList;	//holds the head of the requests list to free
 
-	//traversing the list and freeing all nodes
+	//free terminals list
 	while(termList != NULL)
 	{
 		termList = termList->next;
-		free(head);
-		head = termList;
+		free(headTerm);
+		headTerm = termList;
+	}
+	//free request queue
+	while(requestQueueList != NULL)
+	{
+		requestQueueList = requestQueueList->next;
+		free(headReq);
+		headReq = requestQueueList;
 	}
 }
 //create node
@@ -135,16 +151,12 @@ struct terminals* getAllTerminals()
 	return termList;
 }
 
-
 /* DB manipulations: write, read */
 //write to database
-int writeToDb(char * json, char* errMsg)
+char * writeToDb(char * json, char* errMsg)
 {
-	struct terminals * newNodePtr = NULL;
-	char tempData[DATASIZE];
-
-	mgrInit(); //NOTE: remove when DB thread is implemented
-
+	struct terminals * newNodePtr = NULL;	//new request holder
+	char tempDataHolder[DATASIZE];
 
 	//create new terminal node from json
 	newNodePtr = createTerminalFromJson(json, NULL);
@@ -153,39 +165,16 @@ int writeToDb(char * json, char* errMsg)
 	addNodeToList(newNodePtr);
 
 	//creating response json
-	sprintf(tempData, postIdWraper, newNodePtr->id);	//id
-	sprintf(json, basicResponseWraper, tempData);
+	sprintf(tempDataHolder, postIdWraper, newNodePtr->id);	
+	sprintf(json, basicResponseWraper, tempDataHolder);
 
-
-	return SUCCESS;
+	return json;
 }
 
-
-//NOTE: create dummy list - need to remove when completing DB implementation!
-static void createDummyList()
-{
-	//NOTE: for test - remove when done!
-	struct terminals * dummy1 = NULL;
-	struct terminals * dummy2 = NULL;
-	const char transData[] = "{ \"cardType\": \"Visa\", \"TransactionType\": \"Credit\"}, { \"cardType\": \"EFTPOS\", \"TransactionType\": \"Savings\" }";
-	const char transData2[] = "{ \"cardType\": \"MasterCard\", \"TransactionType\": \"Debit\"}, { \"cardType\": \"EFTPOS\", \"TransactionType\": \"Check\" }";
-
-
-	mgrInit(); //NOTE: remove when DB thread is implemented
-
-	//NOTE: adding dummy nodes for test - remove when done
-	dummy1 = createNode(transData);
-	dummy2 = createNode(transData2);
-	addNodeToList(dummy1); 
-	addNodeToList(dummy2);
-}
 //read from database
 const int readFromDb(int termId, char * respJson, char* errMsg)
 {
 	struct terminals * terms = NULL;
-
-	//NOTE: create dummy list - need to remove!
-	createDummyList();
 
 	//get terminal/terminal list
 	if(ALL == termId)
@@ -195,7 +184,7 @@ const int readFromDb(int termId, char * respJson, char* errMsg)
 
 	if(NULL == terms)
 	{
-		sprintf(errMsg, "%s", "\nNo terminals in DB!\n"); 
+		sprintf(errMsg, basicErrorWraper, "No such terminal in DB"); 
 		return FAIL;
 	}
 
@@ -204,51 +193,146 @@ const int readFromDb(int termId, char * respJson, char* errMsg)
 	return SUCCESS;
 }
 
+/* equipmentMger methods*/
+//This method will initiatilze and create the Equipment thread
+int mgrInit()
+{
+	/* Terminals' list */
+	termList = NULL;			//init linked list - empty list
+	termListTail = termList;	//head of linked list = tail
+	globalTermCtr = 0; 			//init terminals counter to 0   
+
+	/* Requests queue*/
+	requestQueueList = NULL;	//init request queue linked list
+	requestQueueTail = NULL;	//head of linked list = tail       
+
+
+	return SUCCESS;
+}
+
+/* request queue methods*/
+//adding new request to request queue
+void addRequestToQueue(struct requestQueueItem * reqNodeToAdd)
+{
+  if(NULL == requestQueueTail)
+  {//case queue is empty
+    reqNodeToAdd->next = NULL;
+    requestQueueList = reqNodeToAdd;
+    requestQueueTail = requestQueueList;
+  }
+  else
+  {
+    reqNodeToAdd->next = NULL;
+    requestQueueTail->next = reqNodeToAdd;
+    requestQueueTail = requestQueueTail->next;
+  }
+}
+
+//creaing new request node
+struct requestQueueItem * createRequestQueueItem(char * jsonReq, const char * method, int termId, bool isResponseReady, struct MHD_Connection *connection)
+{
+	struct requestQueueItem * reqNode = (struct requestQueueItem *)malloc(sizeof(struct requestQueueItem));
+
+  	strcpy(reqNode->json, jsonReq);		//request
+  	strcpy(reqNode->method, method);	//method
+  	reqNode->termId = termId;			//termId
+  	reqNode->isResponseReady = isResponseReady; //bool to signal we handled response (sent it over "conncection")
+
+  	return reqNode;
+}
+
+//add new request to request queue 
+int queueReq(struct requestQueueItem * request)
+{
+	//lock request queue
+	pthread_mutex_lock(&reqQueueMutex);
+	//add new request to request queue
+	addRequestToQueue(request);
+	//unlock request queue
+	pthread_mutex_unlock(&reqQueueMutex);
+
+	return SUCCESS;
+}
+
+
+//check and get new request from request queue
+struct requestQueueItem * checkQueueAndGetRequest()
+{
+	struct requestQueueItem * tempReqHolder = requestQueueList;
+
+	//check queue
+	if(NULL == requestQueueList)
+	{
+		return NULL;
+	}
+	if(requestQueueList == requestQueueTail)
+		requestQueueList = requestQueueTail = requestQueueList->next;
+	else
+		requestQueueList = requestQueueList->next;
+
+	//return first request in queue
+	return tempReqHolder;
+}
+
+//shutdown
 static void shutDown()
 {
 	//free allocated memory
 	freeNodeList();
 
-	//kill thread
-
+	printf("\nEquipment thread finished!\n\n");
+	//signal to HTTP server that equipmentMgr is done
+	sigEqMgrFlag = true;
 }
+
 //main routine Equipment manager thread
-void mgrRoutine(const char* json, const char* method)
+void * mgrRoutine(void * httpSrvInitMsg)
 {
+	printf("\n%s\n", (char*)httpSrvInitMsg);
 
-	//while HTTP server alive, keep waiting for read/write DB requests
-	// {
-	//		checking in shared memory if we have another R/W request
-	// }
+	//init
+	mgrInit();
 
-
-	//main logic
-	if(0 == strcmp(method, "GET"))
+	//polling request list to se if we have new request from HTTP server
+	while(sigEqMgrFlag)
 	{
+		struct requestQueueItem * newRequest = NULL;	//new request holder
+		
+		/* Check for new request in requestQueue */
+		//lock request queue
+		pthread_mutex_lock(&reqQueueMutex);
+		//check and get new request
+		newRequest = checkQueueAndGetRequest();
+		//unlock request queue
+    	pthread_mutex_unlock(&reqQueueMutex);
+		
 
+    	if(NULL != newRequest)	
+    	{//we fot new request
+			//handling request
+			if(0 == strcmp(newRequest->method, "GET"))
+			{
+				char errMsg[ERRORMSGSIZE];
+				if(FAIL == readFromDb(newRequest->termId, newRequest->json, errMsg)) //read terminal/s info from DB
+					strcpy(newRequest->json, errMsg);
+
+			}
+			else if(0 == strcmp(newRequest->method, "POST"))
+			{
+				char * response;
+
+				response = writeToDb(newRequest->json, NULL);	//write new terminal to DB
+			}
+
+			//
+			newRequest->isResponseReady = true;
+			free(newRequest);
+		}
 	}
-	else if(0 == strcmp(method, "POST"))
-	{
 
-	}
+	//shutdown 
+	shutDown();
 
-	//shutdown - traversing through the list and freeing allocated memory
-	//shutDown();
-}
-
-//This method will initiatilze and create the Equipment thread
-int mgrInit()
-{
-	//init all globals
-	termList = NULL;			//init linked list - empty list
-	termListTail = termList;	//head of linked list = tail
-	globalTermCtr = 0; 			//init terminals counter to 0            
-
-	//create thread
-
-	//call routine function 
-	//mgrRoutine();
-
-	return SUCCESS;
+	return 0;
 }
 

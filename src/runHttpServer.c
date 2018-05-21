@@ -7,10 +7,9 @@
 #include "runHttpServer.h"
 
 /* 
- * Sending json response to the requeest initiator
+ * Sending json response to the request initiator
 */
-static int
-sendResponse (struct MHD_Connection *connection, const char *json)
+int sendResponse (struct MHD_Connection *connection, const char *json)
 {
   struct MHD_Response *response;
   int ret;
@@ -42,8 +41,9 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
   char errMsg[ERRMSGSIZE];
   struct postStatus *post = NULL;
   post = (struct postStatus*)*con_cls;
+  struct requestQueueItem * request;
 
-  //check if resource path is valid
+  //Validation - check if resource path is valid
   if( strstr(url, TERMINALSRESOURCE) == NULL)
   {
     return sendResponse (connection, jsonError);
@@ -58,8 +58,15 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
     //extracting terminal id from url
     termId = getTerminalId(url);    //could be ALL or specific ID
 
-    //get correponding json from DB
-    readFromDb(termId, jResponse, errMsg);
+    //create new request
+    request = createRequestQueueItem(jResponse, method, termId, false, connection);
+    //add new request to request queue
+    queueReq(request);
+    //holding connection to be completed
+    while(!request->isResponseReady);
+
+    //extracting response from handled request
+    strcpy(jResponse, request->json);
 
     //sending appropriate response
     return sendResponse(connection, jResponse);
@@ -100,30 +107,35 @@ answerToConnection (void *cls, struct MHD_Connection *connection,
       post->buff = malloc(*upload_data_size + 1);
       snprintf(post->buff, *upload_data_size+1,"%s", upload_data);  //extracting upload data from request
       *upload_data_size = 0;
-      sprintf(jsonReqResp, "%s", jsonPostWithData);
       return MHD_YES;
     }
 
-    //freeing allocated memory
     if(post != NULL)
     {
       if(postWithDataFlag)
       {
-        sprintf(jsonReqResp, "%s", post->buff); //preparing request to pass to the DB 
+        sprintf(jsonReqResp, "%s", post->buff); //preparing request to pass to the DB
         free(post->buff);
         postWithDataFlag = false;
-        
-        //write new terminal to DB
-        writeToDb(jsonReqResp, NULL);
+
+        //create new request
+        request = createRequestQueueItem(jsonReqResp, method, -1, false, connection);
+
+        //add new request to request queue
+        queueReq(request);
+
+        //holding connection to be completed
+        while(!request->isResponseReady);
+        strcpy(jsonReqResp, request->json);
       }
       else
         sprintf(jsonReqResp, "%s", jsonPostWithNoData);
 
-      free(post);
+      free(post);    //freeing allocated memory
     }
 
     //sending appropriate response
-    return sendResponse (connection, jsonReqResp);
+    return sendResponse(connection, jsonReqResp);;
   }
 
   //sending error message as we didn't get proper GET or POST request
@@ -152,20 +164,29 @@ int getTerminalId(const char* url)
 int main()
 {
   struct MHD_Daemon *daemon;
+  pthread_t pth_equipmentMgr; //thread ptr equipmentMgr
+
 
   //starting deamon to listen to new inbound connections
   daemon = MHD_start_daemon (MHD_USE_SELECT_INTERNALLY, PORT, NULL, NULL,
                              &answerToConnection, NULL, MHD_OPTION_END); //for future multi-threaded we will use 
                                                     //MHD_USE_THREAD_PER_CONNECTION for the first argument
-
   if (NULL == daemon)
     return 1;
 
   printf("\n\nHTTP server is running...\n");
   printf("(press return key to stop the server)\n\n");
 
-  //
-  (void) getchar ();
+  //creating the equipmentMgr thread
+  pthread_create(&pth_equipmentMgr, NULL, mgrRoutine, "Equipment Manager started...");
+
+  (void) getchar();
+
+  //signal equipmentMgr thread to finish
+  sigEqMgrFlag = false;
+
+  while(!sigEqMgrFlag); //waiting for equipmentMgr thread to finish
+  pthread_join(pth_equipmentMgr, NULL);
 
   MHD_stop_daemon (daemon);
 

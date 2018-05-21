@@ -14,8 +14,9 @@
 #endif
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
+#include <stdlib.h>		//for malloc
+#include <stdbool.h>	//for bool type - true/false
+#include <pthread.h>	//for Equipment manager thread
 
 #include "CUnit.h"
 #include "microhttpd.h"
@@ -33,7 +34,9 @@
 
 #define TERMINALSRESOURCE "/api/terminals/" //terminals resource path
 
-struct postStatus {
+
+struct postStatus 
+{
     bool status;
     char *buff;
 };
@@ -41,15 +44,14 @@ struct postStatus {
 bool postWithDataFlag = false; 	//indicating if we got post with data to free allocated post->buff
 
 
-//temporary jsons
-const char *jsonGetById 		= "{ 'response': ['This is a GET BYID request!'] }";    		//json response to be returned
-const char *jsonGetAll  		= "{ 'response': ['This is a GET ALL request!'] }";     		//json response to be returned
-const char *jsonPostWithData	= "{ 'response': ['This is a POST request with data!'] }";     	//json response to be returned
-const char *jsonPostWithNoData	= "{ 'response': ['This is a POST request with NO data!'] }";  	//json response to be returned
-const char *jsonError   		= "{ 'error': ['request was neither proper GET nor POST!'] }"; 	//json response to be returned
+//error jsons
+const char *jsonPostWithNoData	= "{ 'error': [This is a POST request with NO data!] }";  	//json response to be returned
+const char *jsonError   		= "{ 'error': [Request was neither proper GET nor POST!] }"; 	//json response to be returned
 
 
 //extracting terminal id from url
  int getTerminalId(const char* url);
+
+
 
 

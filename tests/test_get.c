@@ -1,6 +1,8 @@
 #include "CUnit.h"
 #include "Basic.h"
 
+#include "../include/equipmentMgr.h"
+
 #include <stdio.h>  	// for printf
 #include <curl/curl.h> 	// curl
 
@@ -39,7 +41,7 @@ copyBuffer (void *ptr, size_t size, size_t nmemb, void *ctx)
 }
 
 //performing curl according to desired url
-void executeCurl(const char* url)
+void executeCurl(const char* url, const char* postData)
 {
   struct curl_slist *hs=NULL; //to include content-type in curl
 
@@ -50,6 +52,8 @@ void executeCurl(const char* url)
   c = curl_easy_init ();
   curl_easy_setopt (c, CURLOPT_URL, url);
   curl_easy_setopt (c, CURLOPT_PORT, (long)PORT);
+  if(NULL != postData)
+      curl_easy_setopt (c, CURLOPT_POSTFIELDS, postData);
   hs = curl_slist_append(hs, "Content-Type: application/json");
   curl_easy_setopt (c, CURLOPT_HTTPHEADER, hs);
   curl_easy_setopt (c, CURLOPT_WRITEFUNCTION, &copyBuffer);
@@ -60,8 +64,32 @@ void executeCurl(const char* url)
   errornum = curl_easy_perform (c); //performing: curl http://127.0.0.1:8888 GET request
 }
 
+//create dummy terminals:
+static void createDummyList()
+{
+  const char * transData  = "{ \"cardType\": \"Visa\", \"TransactionType\": \"Credit\"}, { \"cardType\": \"EFTPOS\", \"TransactionType\": \"Savings\" }";
+  const char * transData2 = "{ \"cardType\": \"MasterCard\", \"TransactionType\": \"Debit\"}, { \"cardType\": \"EFTPOS\", \"TransactionType\": \"Check\" }";
+  const char* postData    = transData;  
+  const char* postData2   = transData2;  
+  const char* url         = "http://127.0.0.1/api/terminals/";
+
+
+  //executing POST to create dummy1
+  executeCurl(url, postData);
+  curl_easy_cleanup (c);
+
+  //executing POST to create dummy2
+  executeCurl(url, postData2);
+  curl_easy_cleanup (c);
+}
+
 /* Test Suite setup and cleanup functions: */
-int init_suite(void) { return 0; }
+int init_suite(void) 
+{ 
+  createDummyList();
+  
+  return 0; 
+}
 int clean_suite(void) { return 0; }
 
 /* Tests */
@@ -71,7 +99,7 @@ void simple_get_request_test(void)
 	const char* url = "http://127.0.0.1/api/terminals/";
 
 	//executing GET curl
-	executeCurl(url);
+	executeCurl(url, NULL);
 	//curl cleanup
 	curl_easy_cleanup (c);
 
@@ -86,7 +114,7 @@ void get_all_request_test(void)
 	const char* url = "http://127.0.0.1/api/terminals/";
 
 	//executing curl
-	executeCurl(url);
+	executeCurl(url, NULL);
 	//curl cleanup
 	curl_easy_cleanup (c);
 
@@ -99,7 +127,7 @@ void get_by_id_resqust_test(void)
 	const char* url = "http://127.0.0.1/api/terminals/1";
 
 	//executing curl
-	executeCurl(url);
+	executeCurl(url, NULL);
 	//curl cleanup
 	curl_easy_cleanup (c);
 

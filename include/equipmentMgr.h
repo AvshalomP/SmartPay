@@ -8,7 +8,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
+#include <pthread.h>
+
+#include "microhttpd.h"
 
 //outcome message of DB oporation
 #define FAIL    0
@@ -16,7 +20,11 @@
 //when requesting all terminals from DB
 #define ALL    -1
 
-#define DATASIZE 1024   
+#define DATASIZE 		1024 
+#define SHAREDQUEUESIZE 10 
+#define METHODSIZE		10
+#define ERRORMSGSIZE	512
+
 
 //terminal node
 struct terminals
@@ -26,12 +34,31 @@ struct terminals
   struct terminals * next;
 };
 
-//This method will initiatilze and create the Equipment thread
+//for shared queue
+struct requestQueueItem
+{
+	char method[METHODSIZE]; 			//i.e GET, POST
+	char json[DATASIZE];				//request json from HTTP server (for GET, POST)
+	int termId;							//terminal ID (if GET) 
+	bool isResponseReady;				//flag to see if request was handled
+	struct requestQueueItem * next;		//next request
+};
+
+//shared queue list
+struct requestQueueItem * requestQueueList;	//head of shared requests list (queue)
+struct requestQueueItem * requestQueueTail;	//tail of shated requests list (queue)
+pthread_mutex_t reqQueueMutex;				//mutex to handle queue
+
+extern bool sigEqMgrFlag;		//signal equipmentMgr to shutdown
+
+//This method will initiatilze after equipmentMgr thread has created
 int mgrInit();
+//main routine Equipment manager thread
+void * mgrRoutine(void * httpSrvInitMsg);
 
 /* DB manipulations: write, read */
 //write to database - returns SUCCESS or FAIL
-int writeToDb(char * json, char* errMsg);
+char * writeToDb(char * json, char* errMsg);
 //read from database - returns SUCCESS or FAIL
 const int readFromDb(int termId, char * respJson, char* errMsg);
 
@@ -48,8 +75,16 @@ struct terminals* getAllTerminals();
 //free all nodes in list
 void freeNodeList();
 
-//main routine Equipment manager thread
-void mgrRoutine(const char* json, const char* method);
+/* request queue handling */
+//check and get new request from request queue
+struct requestQueueItem * checkQueueAndGetRequest();
+//adding request to request queue
+void addRequestToQueue(struct requestQueueItem * reqNodeToAdd);
+//creaing new request node
+struct requestQueueItem * createRequestQueueItem(char * jsonReq, const char * method, int termId, bool isResponseReady, struct MHD_Connection *connection);
+//create & add new request to 
+int queueReq(struct requestQueueItem * request);
+
 
 
 
