@@ -6,4 +6,4 @@ Please read the attached project description file containing:
 2. How to run unit tests
 3. General description and plan 
 
-[Description](./Payment\ Terminal\ project\ -\ Description.pdf)
+[Description & Usage](./Payment%20Terminal%20project%20-%20Description.pdf)
