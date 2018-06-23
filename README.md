@@ -3,7 +3,7 @@
  
 ## Getting Started
 
-> This app contains localhost defines, so the app may not run with its features on your local machine. However, feel free to clone this repository if necessary.
+> This code contains localhost defines, so the app may not run with its features on your local machine. However, feel free to clone this repository if necessary.
 
 ### Clone or download this repository
 
