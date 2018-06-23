@@ -17,7 +17,7 @@ git clone https://github.com/AvshalomP/SmartPay.git
 make 
 ```
 
-Run HTTP server
+### Run HTTP server
 
 ```sh
 ./runHttpServer
